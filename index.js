@@ -18,6 +18,25 @@ app.use(express.json());
 
 
 
+// jwt verify
+const verifyJWT = (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ error: true, message: 'unauthorized access' })
+    }
+
+    // token
+    const token = authorization.split(' ')[1];
+    jwt.verify(token, process.env.TOKEN_SECRET, (er, decoded) => {
+        if (er) {
+            return res.status(401).send({ error: true, message: 'unauthorized access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
+
 
 
 
@@ -43,6 +62,23 @@ async function run() {
             res.send('music planet server is running.')
         })
 
+
+
+        //    verify admin & instructor
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const filter = { email: email };
+            const user = await usersCollection.findOne(filter);
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ error: true, message: 'forbidden access' })
+            }
+            next();
+        }
+
+
+
+
+
         // json web  token
         app.post('/jwt', async (req, res) => {
             const user = req.body;
@@ -58,6 +94,14 @@ async function run() {
             res.send(result);
         })
 
+
+        app.get('/checkUser', verifyJWT, async(req, res) =>{
+            const email = req.query.email;
+            const query = {email: email}
+            const result = await usersCollection.findOne(query);
+            res.send(result);
+        })
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             const query = { email: req?.body?.email };
@@ -69,6 +113,7 @@ async function run() {
             res.send(result);
         })
 
+        
 
 
 
