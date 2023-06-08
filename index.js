@@ -128,6 +128,18 @@ async function run() {
 
         })
 
+        app.patch('/makeInstructor/:id', verifyJWT, verifyAdmin, async (req, res) => {
+
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updateRole = {
+                $set: { role: 'instructor' }
+            }
+            const result = await usersCollection.updateOne(query, updateRole);
+            res.send(result)
+
+        })
+
 
 
 
