@@ -57,6 +57,10 @@ async function run() {
         client.connect();
 
         const usersCollection = client.db('musicPlanetDB').collection('user');
+        const classesCollection = client.db('musicPlanetDB').collection('classes');
+
+
+
 
         app.get('/', (req, res) => {
             res.send('music planet server is running.')
@@ -138,6 +142,19 @@ async function run() {
             const result = await usersCollection.updateOne(query, updateRole);
             res.send(result)
 
+        })
+
+
+        // manage classes api for admin
+        app.get('/classes', verifyJWT, verifyAdmin, async (req, res) => {
+            const result = await classesCollection.find().toArray();
+            res.send(result);
+        })
+
+        // Popular classes
+        app.get('/popularClasses', async (req, res) => {
+            const result = await classesCollection.find().toArray();
+            res.send(result);
         })
 
 
