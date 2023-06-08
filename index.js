@@ -151,6 +151,28 @@ async function run() {
             res.send(result);
         })
 
+        // approve classes
+        app.patch('/approveClasses/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updateStatus = {
+                $set: { status: 'approved' }
+            }
+            const result = await classesCollection.updateOne(filter, updateStatus);
+            res.send(result);
+        })
+
+        // deny classes
+        app.patch('/denyClasses/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) }
+            const updateStatus = {
+                $set: { status: 'denied' }
+            }
+            const result = await classesCollection.updateOne(filter, updateStatus);
+            res.send(result);
+        })
+
         // Popular classes
         app.get('/popularClasses', async (req, res) => {
             const result = await classesCollection.find().toArray();
