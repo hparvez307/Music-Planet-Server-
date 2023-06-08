@@ -89,15 +89,15 @@ async function run() {
 
         // users
 
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result);
         })
 
 
-        app.get('/checkUser', verifyJWT, async(req, res) =>{
+        app.get('/checkUser', verifyJWT, async (req, res) => {
             const email = req.query.email;
-            const query = {email: email}
+            const query = { email: email }
             const result = await usersCollection.findOne(query);
             res.send(result);
         })
@@ -113,7 +113,23 @@ async function run() {
             res.send(result);
         })
 
-        
+
+
+        // make admin and instructor
+        app.patch('/makeAdmin/:id', verifyJWT, verifyAdmin, async (req, res) => {
+
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updateRole = {
+                $set: { role: 'admin' }
+            }
+            const result = await usersCollection.updateOne(query, updateRole);
+            res.send(result)
+
+        })
+
+
+
 
 
 
