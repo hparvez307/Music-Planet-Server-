@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 5000;
@@ -34,18 +35,18 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        client.connect();
 
-        const usersCollection = client.db('users').collection('user');
+        const usersCollection = client.db('musicPlanetDB').collection('user');
 
         app.get('/', (req, res) => {
             res.send('music planet server is running.')
         })
 
         // json web  token
-        app.post('/jwt', (req, res) => {
+        app.post('/jwt', async (req, res) => {
             const user = req.body;
-            const token = jwt.sign(user, process.env.TOKEN_SECRET, { expiresIn: '1d' });
+            const token = await jwt.sign(user, process.env.TOKEN_SECRET, { expiresIn: '24h' });
             res.send({ token });
         })
 
@@ -59,6 +60,11 @@ async function run() {
 
         app.post('/users', async (req, res) => {
             const user = req.body;
+            const query = { email: req?.body?.email };
+            const isExist = await usersCollection.findOne(query);
+            if (isExist) {
+                return res.send({ message: 'user already exist in database' });
+            }
             const result = await usersCollection.insertOne(user);
             res.send(result);
         })
