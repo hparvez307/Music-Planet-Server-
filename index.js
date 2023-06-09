@@ -5,8 +5,8 @@ const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-
-
+const Stripe = require('stripe');
+const stripe = Stripe(process.env.PAYMENT_SECRET_KEY);
 
 
 
@@ -60,6 +60,7 @@ async function run() {
         const classesCollection = client.db('musicPlanetDB').collection('classes');
         const selectedClassesCollection = client.db('musicPlanetDB').collection('selectedClasses');
         const enrolledClassesCollection = client.db('musicPlanetDB').collection('enrolledClasses');
+        const paymentsCollection = client.db('musicPlanetDB').collection('payments');
 
 
 
@@ -284,12 +285,75 @@ async function run() {
         // student apis
 
         // post selected classes
+        app.get('/bookClass', verifyJWT, verifyStudent, async (req, res) => {
+            const email = req.decoded.email;
+            const filter = { studentEmail: email };
+            const result = await selectedClassesCollection.find(filter).toArray();
+            res.send(result);
+        })
+
         app.post('/bookClass', verifyJWT, verifyStudent, async (req, res) => {
             const bookedClass = req.body;
             const result = await selectedClassesCollection.insertOne(bookedClass);
             res.send(result);
         })
 
+        app.delete('/deleteBookClass/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await selectedClassesCollection.deleteOne(query);
+            res.send(result);
+        })
+
+
+
+
+
+
+
+
+
+
+
+        // payment
+        app.post('/create-payment-intent', verifyJWT, verifyStudent, async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret
+            })
+        })
+
+
+
+        app.post('/classPayments', async (req, res) => {
+            const payment = req.body;
+
+            const bookingId = payment?.classId;
+            const query = { _id: new ObjectId(bookingId) };
+            const deleteBooking = await selectedClassesCollection.deleteOne(query);
+
+            const previousClsId = payment?.previousClassId;
+            const previousClassQuery = { _id: new ObjectId(previousClsId) };
+            const previousClass = await classesCollection.findOne(previousClassQuery);
+            const previousSeat = previousClass?.availableSeats;
+            if (parseFloat(previousSeat) > 0) {
+                const newSeat = parseFloat(previousSeat) - 1;
+                const updateDoc = {
+                    $set: { availableSeats: newSeat }
+                }
+                const updateClassSeat = await classesCollection.updateOne(previousClassQuery, updateDoc)
+            }
+
+
+            const result = await paymentsCollection.insertOne(payment);
+            res.send(result)
+        })
 
 
 
