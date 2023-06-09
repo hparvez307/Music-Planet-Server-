@@ -58,6 +58,8 @@ async function run() {
 
         const usersCollection = client.db('musicPlanetDB').collection('user');
         const classesCollection = client.db('musicPlanetDB').collection('classes');
+        const selectedClassesCollection = client.db('musicPlanetDB').collection('selectedClasses');
+        const enrolledClassesCollection = client.db('musicPlanetDB').collection('enrolledClasses');
 
 
 
@@ -84,6 +86,16 @@ async function run() {
             const filter = { email: email };
             const user = await usersCollection.findOne(filter);
             if (user?.role !== 'instructor') {
+                return res.status(403).send({ error: true, message: 'forbidden access' })
+            }
+            next();
+        }
+
+        const verifyStudent = async (req, res, next) => {
+            const email = req.decoded.email;
+            const filter = { email: email };
+            const user = await usersCollection.findOne(filter);
+            if (user?.role !== 'student') {
                 return res.status(403).send({ error: true, message: 'forbidden access' })
             }
             next();
@@ -256,17 +268,27 @@ async function run() {
             const filter = { _id: new ObjectId(id) }
             const options = { upsert: true };
             const updateFeedback = {
-                $set: { 
+                $set: {
                     availableSeats: classInfo.availableSeats,
                     className: classInfo.className,
                     image: classInfo.image,
                     price: classInfo.price
-                 }
+                }
             }
             const result = await classesCollection.updateOne(filter, updateFeedback, options);
             res.send(result);
         })
 
+
+
+        // student apis
+
+        // post selected classes
+        app.post('/bookClass', verifyJWT, verifyStudent, async (req, res) => {
+            const bookedClass = req.body;
+            const result = await selectedClassesCollection.insertOne(bookedClass);
+            res.send(result);
+        })
 
 
 
