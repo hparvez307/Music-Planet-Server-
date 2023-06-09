@@ -79,6 +79,16 @@ async function run() {
             next();
         }
 
+        const verifyInstructor = async (req, res, next) => {
+            const email = req.decoded.email;
+            const filter = { email: email };
+            const user = await usersCollection.findOne(filter);
+            if (user?.role !== 'instructor') {
+                return res.status(403).send({ error: true, message: 'forbidden access' })
+            }
+            next();
+        }
+
 
 
 
@@ -145,11 +155,24 @@ async function run() {
         })
 
 
+
+        // public class api
+
+        app.get('/allClass', async (req, res) => {
+            const result = await classesCollection.find().toArray();
+            res.send(result);
+        })
+
+
+
         // manage classes api for admin
         app.get('/classes', verifyJWT, verifyAdmin, async (req, res) => {
             const result = await classesCollection.find().toArray();
             res.send(result);
         })
+
+
+
 
         // approve classes
         app.patch('/approveClasses/:id', verifyJWT, verifyAdmin, async (req, res) => {
@@ -199,9 +222,48 @@ async function run() {
         // api for instructors dashboard
 
         // add a class api
-        app.post('/addClasses', verifyJWT, async (req, res) => {
+        app.post('/addClasses', verifyJWT, verifyInstructor, async (req, res) => {
             const classInfo = req.body;
             const result = await classesCollection.insertOne(classInfo);
+            res.send(result);
+        })
+
+        // get classes for specific instructors
+        app.get('/instructorsClasses', verifyJWT, verifyInstructor, async (req, res) => {
+
+            const email = req.decoded.email;
+            const filter = { instructorEmail: email };
+            const result = await classesCollection.find(filter).toArray();
+            res.send(result);
+
+        })
+
+        // specific class for update class
+        app.get('/singleClass/:id', verifyJWT, verifyInstructor, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await classesCollection.findOne(query);
+            res.send(result);
+
+        })
+
+
+        // update a class
+
+        app.patch('/updateClass/:id', verifyJWT, verifyInstructor, async (req, res) => {
+            const id = req.params.id;
+            const classInfo = req.body;
+            const filter = { _id: new ObjectId(id) }
+            const options = { upsert: true };
+            const updateFeedback = {
+                $set: { 
+                    availableSeats: classInfo.availableSeats,
+                    className: classInfo.className,
+                    image: classInfo.image,
+                    price: classInfo.price
+                 }
+            }
+            const result = await classesCollection.updateOne(filter, updateFeedback, options);
             res.send(result);
         })
 
