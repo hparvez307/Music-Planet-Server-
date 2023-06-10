@@ -71,7 +71,7 @@ async function run() {
 
 
 
-        //    verify admin & instructor
+        //    verify admin 
         const verifyAdmin = async (req, res, next) => {
             const email = req.decoded.email;
             const filter = { email: email };
@@ -82,6 +82,7 @@ async function run() {
             next();
         }
 
+        // verify instructor
         const verifyInstructor = async (req, res, next) => {
             const email = req.decoded.email;
             const filter = { email: email };
@@ -92,6 +93,7 @@ async function run() {
             next();
         }
 
+        // verify student
         const verifyStudent = async (req, res, next) => {
             const email = req.decoded.email;
             const filter = { email: email };
@@ -105,7 +107,6 @@ async function run() {
 
 
 
-
         // json web  token
         app.post('/jwt', async (req, res) => {
             const user = req.body;
@@ -114,8 +115,11 @@ async function run() {
         })
 
 
-        // users
 
+
+
+
+        // users
         app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
             const result = await usersCollection.find().toArray();
             res.send(result);
@@ -140,6 +144,20 @@ async function run() {
             res.send(result);
         })
 
+        // get instructors
+        app.get('/homeInstructors', async (req, res) => {
+            const result = await usersCollection.find().sort({ students: -1 }).toArray();
+            const instructors = result.filter(ins => ins.role === 'instructor')
+            res.send(instructors);
+        })
+
+        // all instructor
+        app.get('/allInstructors', async (req, res) => {
+            const result = await usersCollection.find().toArray();
+            const instructors = result.filter(ins => ins.role === 'instructor')
+            res.send(instructors);
+        })
+
 
 
         // make admin and instructor
@@ -160,7 +178,12 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const updateRole = {
-                $set: { role: 'instructor' }
+                $set: {
+                    role: 'instructor',
+                    students: 0,
+                    classes: 0,
+
+                }
             }
             const result = await usersCollection.updateOne(query, updateRole);
             res.send(result)
@@ -169,21 +192,20 @@ async function run() {
 
 
 
-        // public class api
+        // public class api for all approved class
 
         app.get('/allClass', async (req, res) => {
-            const result = await classesCollection.find().toArray();
+            const allClasses = await classesCollection.find().sort({ date: -1 }).toArray();
+            const result = allClasses.filter(clas => clas.status === 'approved');
             res.send(result);
         })
-
 
 
         // manage classes api for admin
         app.get('/classes', verifyJWT, verifyAdmin, async (req, res) => {
-            const result = await classesCollection.find().toArray();
+            const result = await classesCollection.find().sort({ date: -1 }).toArray();
             res.send(result);
         })
-
 
 
 
@@ -191,6 +213,19 @@ async function run() {
         app.patch('/approveClasses/:id', verifyJWT, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) }
+
+            // update total classes of an Instructor after admin approval
+            const insClassData = await classesCollection.findOne(filter);
+            const insEmail = insClassData?.instructorEmail;
+            const insQuery = { email: insEmail };
+            const insData = await usersCollection.findOne(insQuery);
+            const totalClasses = parseFloat(insData?.classes) + 1;
+            const updateTotalClass = {
+                $set: { classes: totalClasses }
+            }
+            const updateInsTotalClasses = await usersCollection.updateOne(insQuery, updateTotalClass)
+
+            // update class status as approved after admin approval
             const updateStatus = {
                 $set: { status: 'approved' }
             }
@@ -226,7 +261,8 @@ async function run() {
 
         // Popular classes with sorting the most enrolled class
         app.get('/popularClasses', async (req, res) => {
-            const result = await classesCollection.find().sort({students: -1}).toArray();
+            const popularClass = await classesCollection.find().sort({ students: -1 }).toArray();
+            const result = popularClass.filter(clas => clas.status === 'approved');
             res.send(result);
         })
 
@@ -259,6 +295,9 @@ async function run() {
             res.send(result);
 
         })
+
+
+
 
 
         // update a class
@@ -317,15 +356,9 @@ async function run() {
         app.get('/myPaymentHistory', verifyJWT, verifyStudent, async (req, res) => {
             const email = req.decoded.email;
             const filter = { email: email };
-            const result = await paymentsCollection.find(filter).sort({date: -1}).toArray();
+            const result = await paymentsCollection.find(filter).sort({ date: -1 }).toArray();
             res.send(result);
         })
-
-
-
-
-
-
 
 
 
@@ -349,10 +382,22 @@ async function run() {
         app.post('/classPayments', async (req, res) => {
             const payment = req.body;
 
+            //    update total students of a instructor
+            const instructorEmail = payment?.instructorEmail;
+            const insQuery = { email: instructorEmail }
+            const instructorData = await usersCollection.findOne(insQuery);
+            if (instructorData.role === 'instructor') {
+                const totalStudent = parseFloat(instructorData.students) + 1;
+                const updateInsData = {
+                    $set: { students: totalStudent }
+                }
+                const updateInsturctor = await usersCollection.updateOne(insQuery, updateInsData);
+            }
+
+            // update enrolled classes info (students and seats)
             const bookingId = payment?.classId;
             const query = { _id: new ObjectId(bookingId) };
             const deleteBooking = await selectedClassesCollection.deleteOne(query);
-
             const previousClsId = payment?.previousClassId;
             const previousClassQuery = { _id: new ObjectId(previousClsId) };
             const previousClass = await classesCollection.findOne(previousClassQuery);
@@ -363,17 +408,17 @@ async function run() {
                 const newStudent = parseFloat(previousStudent) + 1;
                 const updateDoc = {
                     $set: {
-                     availableSeats: newSeat,
-                     students: newStudent
-                     }
+                        availableSeats: newSeat,
+                        students: newStudent
+                    }
                 }
                 const updateClassSeat = await classesCollection.updateOne(previousClassQuery, updateDoc)
             }
 
-
             const result = await paymentsCollection.insertOne(payment);
             res.send(result)
         })
+
 
 
 
