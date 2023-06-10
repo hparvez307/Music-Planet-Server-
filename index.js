@@ -420,6 +420,15 @@ async function run() {
         })
 
 
+        // check role
+        app.get('/checkRoleForBtn', async (req, res) => {
+            const email = req.query?.email;
+            const query = { email: email };
+            const findUser = await usersCollection.findOne(query);
+            const result = { student: findUser?.role === 'student' };
+            res.send(result);
+        })
+
 
 
 
