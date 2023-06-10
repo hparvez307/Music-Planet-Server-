@@ -224,9 +224,9 @@ async function run() {
 
 
 
-        // Popular classes
+        // Popular classes with sorting the most enrolled class
         app.get('/popularClasses', async (req, res) => {
-            const result = await classesCollection.find().toArray();
+            const result = await classesCollection.find().sort({students: -1}).toArray();
             res.send(result);
         })
 
@@ -298,13 +298,28 @@ async function run() {
             res.send(result);
         })
 
-        app.delete('/deleteBookClass/:id', verifyJWT, async (req, res) => {
+        app.delete('/deleteBookClass/:id', verifyJWT, verifyStudent, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await selectedClassesCollection.deleteOne(query);
             res.send(result);
         })
 
+        // my enrolled classes
+        app.get('/myEnrolledClasses', verifyJWT, verifyStudent, async (req, res) => {
+            const email = req.decoded.email;
+            const filter = { email: email };
+            const result = await paymentsCollection.find(filter).toArray();
+            res.send(result);
+        })
+
+        // my payment history
+        app.get('/myPaymentHistory', verifyJWT, verifyStudent, async (req, res) => {
+            const email = req.decoded.email;
+            const filter = { email: email };
+            const result = await paymentsCollection.find(filter).sort({date: -1}).toArray();
+            res.send(result);
+        })
 
 
 
@@ -342,10 +357,15 @@ async function run() {
             const previousClassQuery = { _id: new ObjectId(previousClsId) };
             const previousClass = await classesCollection.findOne(previousClassQuery);
             const previousSeat = previousClass?.availableSeats;
-            if (parseFloat(previousSeat) > 0) {
+            const previousStudent = previousClass?.students;
+            if (parseFloat(previousSeat) > 0 || parseFloat(previousStudent) >= 0) {
                 const newSeat = parseFloat(previousSeat) - 1;
+                const newStudent = parseFloat(previousStudent) + 1;
                 const updateDoc = {
-                    $set: { availableSeats: newSeat }
+                    $set: {
+                     availableSeats: newSeat,
+                     students: newStudent
+                     }
                 }
                 const updateClassSeat = await classesCollection.updateOne(previousClassQuery, updateDoc)
             }
