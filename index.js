@@ -59,7 +59,6 @@ async function run() {
         const usersCollection = client.db('musicPlanetDB').collection('user');
         const classesCollection = client.db('musicPlanetDB').collection('classes');
         const selectedClassesCollection = client.db('musicPlanetDB').collection('selectedClasses');
-        const enrolledClassesCollection = client.db('musicPlanetDB').collection('enrolledClasses');
         const paymentsCollection = client.db('musicPlanetDB').collection('payments');
 
 
@@ -421,12 +420,17 @@ async function run() {
 
 
         // check role
-        app.get('/checkRoleForBtn', async (req, res) => {
-            const email = req.query?.email;
-            const query = { email: email };
-            const findUser = await usersCollection.findOne(query);
-            const result = { student: findUser?.role === 'student' };
-            res.send(result);
+        app.get('/checkState', async (req, res) => {
+            const users = await usersCollection.find().toArray();
+            const userLength = users.length;
+            const classses = await classesCollection.find().toArray();
+            const approvedClases = classses.filter(clas => clas.status === 'approved')
+            const classesLength = approvedClases.length;
+            const students = users.filter(user => user.role === 'student');
+            const studentsLength = students.length;
+            const instructors = users.filter(user => user.role === 'instructor');
+            const instructorsLength = instructors.length;
+            res.send({ userLength, classesLength, studentsLength, instructorsLength })
         })
 
 
